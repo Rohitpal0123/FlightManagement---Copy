@@ -1,0 +1,40 @@
+bookingExists{
+
+  required:
+  same userid 
+  booking same flight(FlightName)
+
+}
+
+
+
+
+
+
+
+
+
+[HttpGet("cancelFLights")]
+        public async Task<IActionResult> GetCanceledFlights()
+        {
+            try
+            {
+                var canceledFlights = await _context.Flights.ToListAsync();
+            }
+            catch (DbUpdateException dbEx)
+            {
+                return StatusCode(500, new
+                {
+                    message = "Database error occured.",
+                    error = dbEx.Message
+                });
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new
+                {
+                    message = "An unexpected error occured.",
+                    error = ex.Message
+                });
+            }
+        }

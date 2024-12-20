@@ -1,0 +1,19 @@
+{
+  "Version": 1,
+  "Hash": "4NvTq0qmndoFwL63+kfNsCRMwp6LL9a/WB6BA/0NJSU=",
+  "Source": "FlightManagement",
+  "BasePath": "_content/FlightManagement",
+  "Mode": "Default",
+  "ManifestType": "Build",
+  "ReferencedProjectsConfiguration": [],
+  "DiscoveryPatterns": [
+    {
+      "Name": "FlightManagement\\wwwroot",
+      "Source": "FlightManagement",
+      "ContentRoot": "C:\\Users\\rohitgpa\\OneDrive - Capgemini\\Documents\\Projects\\FlightManagement - Copy\\wwwroot\\",
+      "BasePath": "_content/FlightManagement",
+      "Pattern": "**"
+    }
+  ],
+  "Assets": []
+}
