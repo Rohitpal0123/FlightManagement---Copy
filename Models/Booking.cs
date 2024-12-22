@@ -19,7 +19,7 @@ public partial class Booking
     [StringLength(10, ErrorMessage = "Seat Number cannot exceed 10 characters.")]
     public string SeatNumber { get; set; } = null!;
 
-    [Required(ErrorMessage = "Booking Date is required.")]
+    
     [DataType(DataType.DateTime, ErrorMessage = "Invalid date and time format.")]
     public DateTime? BookingDate { get; set; }
 

@@ -1,0 +1,147 @@
+using FlightManagement.Models;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
+using System.Security.Claims;
+using System.Text;
+using System.IO;
+using System.Threading.Tasks;
+
+namespace FlightController.Controllers
+{
+    [Route("booking")]
+    [Authorize]
+    [ApiController]
+    public class BookingController : ControllerBase
+    {
+        private readonly FlightManagementContext _context;
+
+        public BookingController(FlightManagementContext context)
+        {
+            _context = context;
+        }
+
+        [Authorize]
+        [HttpPost]
+        public async Task<IActionResult> CreateBooking([FromBody] Booking bookingDetails)
+        {
+            var flight = await _context.Flights.FirstOrDefaultAsync(f => f.FlightId == bookingDetails.FlightId);
+
+            if (bookingDetails == null)
+            {
+                return BadRequest(new
+                {
+                    message = "Booking cannot be null."
+                });
+            }
+
+            if (bookingDetails.BookingDate > flight.Departure)
+            {
+                return BadRequest(new
+                {
+                    message = "Invalid Booking Date"
+                });
+            }
+
+            if (!ModelState.IsValid)
+            {
+                return BadRequest(ModelState);
+            }
+
+            try
+            {
+                var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier);
+                if (userIdClaim == null)
+                {
+                    return Unauthorized(new
+                    {
+                        message = "User is not authenticated."
+                    });
+                }
+
+                var userId = int.Parse(userIdClaim.Value);
+                bookingDetails.UserId = userId;
+
+                var bookingExists = await _context.Bookings.FirstOrDefaultAsync(
+                    b => b.UserId == bookingDetails.UserId && b.FlightName == bookingDetails.FlightName
+                );
+
+                if (bookingExists != null)
+                {
+                    return BadRequest(new
+                    {
+                        message = $"Booking for userId {bookingDetails.UserId} already exists for the flight {bookingDetails.FlightName}"
+                    });
+                }
+
+                if (bookingDetails.BookingDate < DateTime.Now)
+                {
+                    return BadRequest(new
+                    {
+                        message = "Invalid booking date."
+                    });
+                }
+
+                if (flight.SeatsAvailable < bookingDetails.NumOfPassengers)
+                {
+                    return Conflict(new
+                    {
+                        message = "Seats not available."
+                    });
+                }
+
+                var totalPrice = bookingDetails.NumOfPassengers * flight.Price;
+                bookingDetails.TotalPrice = totalPrice;
+
+                await _context.Bookings.AddAsync(bookingDetails);
+
+                flight.SeatsAvailable -= bookingDetails.NumOfPassengers;
+                await _context.SaveChangesAsync();
+
+                var user = await _context.Users.FirstOrDefaultAsync(u => u.UserId == bookingDetails.UserId);
+                var userEmail = user.Email;
+
+                var emailSender = new GenerateMail();
+
+                string recipientEmail = userEmail;
+                string subject = "Successful Booking Confirmation !";
+
+                // Load the HTML template
+                string templatePath = Path.Combine(Directory.GetCurrentDirectory(), "Templates", "BookingConfirmationTemplate.html");
+                string htmlTemplate = await System.IO.File.ReadAllTextAsync(templatePath);
+
+                // Populate the template with dynamic data
+                string htmlBody = htmlTemplate
+                    .Replace("{{FlightName}}", bookingDetails.FlightName)
+                    .Replace("{{SeatNumber}}", bookingDetails.SeatNumber)
+                    .Replace("{{NumOfPassengers}}", bookingDetails.NumOfPassengers.ToString())
+                    .Replace("{{TotalPrice}}", bookingDetails.TotalPrice.ToString())
+                    .Replace("{{BookingDate}}", bookingDetails.BookingDate.ToString());
+
+                await emailSender.SendEmailAsync(recipientEmail, subject, htmlBody);
+
+                return StatusCode(201, new
+                {
+                    message = $"Please checkout, your total price for Flight {bookingDetails.FlightName} is {bookingDetails.TotalPrice}",
+                    CheckoutId = bookingDetails.BookingId
+                });
+            }
+            catch (DbUpdateException dbEx)
+            {
+                return StatusCode(500, new
+                {
+                    message = "Database error occurred.",
+                    error = dbEx.Message
+                });
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new
+                {
+                    message = "An unexpected error occurred",
+                    error = ex.Message
+                });
+            }
+        }
+    }
+}

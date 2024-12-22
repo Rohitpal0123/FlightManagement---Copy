@@ -136,14 +136,6 @@ namespace FlightController.Controllers
                     message = "Booking cannot be null."
                 });
             }
-            
-            if (bookingDetails.BookingDate > flight.Departure)
-            {
-                return BadRequest(new
-                {
-                    message = "Invalid Booking Date"
-                });
-            }
 
             if (!ModelState.IsValid)
             {
@@ -152,7 +144,6 @@ namespace FlightController.Controllers
 
             try
             {
-
                 var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier);
                 if (userIdClaim == null)
                 {
@@ -163,10 +154,11 @@ namespace FlightController.Controllers
                 }
 
                 var userId = int.Parse(userIdClaim.Value);
-
                 bookingDetails.UserId = userId;
 
-                //check if booking already exists for that flight
+                // Set the BookingDate to the current time
+                bookingDetails.BookingDate = DateTime.Now;
+
                 var bookingExists = await _context.Bookings.FirstOrDefaultAsync(
                     b => b.UserId == bookingDetails.UserId && b.FlightName == bookingDetails.FlightName
                 );
@@ -179,17 +171,6 @@ namespace FlightController.Controllers
                     });
                 }
 
-                // Check if booking is in future
-                if (bookingDetails.BookingDate < DateTime.Now)
-                {
-                    return BadRequest(new
-                    {
-                        message = "Invalid booking date."
-                    });
-                }
-
-
-                //check if seat is available
                 if (flight.SeatsAvailable < bookingDetails.NumOfPassengers)
                 {
                     return Conflict(new
@@ -209,50 +190,22 @@ namespace FlightController.Controllers
                 var user = await _context.Users.FirstOrDefaultAsync(u => u.UserId == bookingDetails.UserId);
                 var userEmail = user.Email;
 
-
                 var emailSender = new GenerateMail();
 
                 string recipientEmail = userEmail;
                 string subject = "Successful Booking Confirmation !";
-                string htmlBody = $@"
-            <html>
-            <head>
-                <style>
-                    body {{ font-family: Arial, sans-serif; background-color: #f4f4f9; padding: 20px; }}
-                    .container {{ max-width: 600px; margin: 0 auto; background-color: #ffffff; padding: 20px; border-radius: 8px; box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1); }}
-                    table {{ width: 100%; border-collapse: collapse; margin: 20px 0; }}
-                    th, td {{ padding: 10px; text-align: left; border: 1px solid #ddd; }}
-                    th {{ background-color: #f2f2f2; }}
-                    .footer {{ text-align: center; font-size: 14px; color: #888888; margin-top: 20px; }}
-                </style>
-            </head>
-            <body>
-                <div class='container'>
-                    <h2>Flight Booking Confirmed.</h2>
-                    <p>Thank you for booking your flight with us. Here are your flight details:</p>
-                    <table>
-                        <tr>
-                            <th>Flight Number</th>
-                            <th>SeatNumber</th>
-                            <th>Passengers</th>
-                            <th>Total Price</th>
-                            <th>Booking Date</th>
-                        </tr>
-                        <tr>
-                            <td>{bookingDetails.FlightName}</td>
-                            <td>{bookingDetails.SeatNumber}</td>
-                            <td>{bookingDetails.NumOfPassengers}</td>
-                            <td>{bookingDetails.TotalPrice}</td>
-                            <td>{bookingDetails.BookingDate}</td>
-                        </tr>
-                    </table>
-                    <div class='footer'>
-                    </div>
-                </div>
-            </body>
-            </html>
-        ";
 
+                // Load the HTML template
+                string templatePath = Path.Combine(Directory.GetCurrentDirectory(), "Templates", "BookingConfirmationTemplate.html");
+                string htmlTemplate = await System.IO.File.ReadAllTextAsync(templatePath);
+
+                // Populate the template with dynamic data
+                string htmlBody = htmlTemplate
+                    .Replace("{{FlightName}}", bookingDetails.FlightName)
+                    .Replace("{{SeatNumber}}", bookingDetails.SeatNumber)
+                    .Replace("{{NumOfPassengers}}", bookingDetails.NumOfPassengers.ToString())
+                    .Replace("{{TotalPrice}}", bookingDetails.TotalPrice.ToString())
+                    .Replace("{{BookingDate}}", bookingDetails.BookingDate.ToString());
 
                 await emailSender.SendEmailAsync(recipientEmail, subject, htmlBody);
 
@@ -266,7 +219,7 @@ namespace FlightController.Controllers
             {
                 return StatusCode(500, new
                 {
-                    message = "Database error occured.",
+                    message = "Database error occurred.",
                     error = dbEx.Message
                 });
             }
@@ -274,7 +227,7 @@ namespace FlightController.Controllers
             {
                 return StatusCode(500, new
                 {
-                    message = "An unexpected error occured",
+                    message = "An unexpected error occurred",
                     error = ex.Message
                 });
             }
